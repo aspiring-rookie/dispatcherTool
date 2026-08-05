@@ -196,11 +196,25 @@ class DatabaseManager:
         return row["c"] > 0
 
     def generate_daily_from_templates(self, record_date: str, shift_type: int) -> int:
-        """为指定日期+班次从模板生成任务记录（不含临时任务）。已存在则跳过。"""
-        if self.records_exist(record_date, shift_type):
-            return 0
+        """为指定日期+班次从模板生成任务记录（增量补齐）。
+
+        - 已存在的 task_id（含已完成的）跳过，保留当天勾选状态
+        - 仅插入今天还没生成过的新模板
+        - 模板被删除/停用不影响历史记录
+        """
         templates = self.list_active_templates_for_shift(shift_type)
         if not templates:
+            return 0
+        existing_rows = self._conn.execute(
+            """
+            SELECT DISTINCT task_id FROM DailyRecords
+            WHERE record_date = ? AND shift_type = ? AND is_temp = 0 AND task_id IS NOT NULL
+            """,
+            (record_date, shift_type),
+        ).fetchall()
+        existing_ids = {r["task_id"] for r in existing_rows}
+        pending = [t for t in templates if t["id"] not in existing_ids]
+        if not pending:
             return 0
         rows = [
             (
@@ -213,7 +227,7 @@ class DatabaseManager:
                 0,
                 t.get("due_time"),
             )
-            for t in templates
+            for t in pending
         ]
         self._conn.executemany(
             """
