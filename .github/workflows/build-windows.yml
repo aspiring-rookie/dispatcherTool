@@ -1,0 +1,49 @@
+name: Build Windows .exe
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller Pillow
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: python -m PyInstaller DispatcherTool.spec --noconfirm --clean
+
+      - name: Smoke test (verify exe runs without import errors)
+        shell: powershell
+        run: |
+          $proc = Start-Process -FilePath "dist\DispatcherTool.exe" -PassThru
+          Start-Sleep -Seconds 6
+          if ($proc.HasExited) {
+            Write-Error "Process exited unexpectedly with code $($proc.ExitCode)"
+            exit 1
+          }
+          Stop-Process -Id $proc.Id -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DispatcherTool-windows
+          path: dist/DispatcherTool.exe
+          if-no-files-found: error
+          retention-days: 30
