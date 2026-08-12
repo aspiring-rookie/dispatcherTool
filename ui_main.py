@@ -456,11 +456,21 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "交接班报告（已复制）", text)
 
     def _on_toggle_pin(self, checked: bool) -> None:
+        # setWindowFlags 会重建原生窗口；在 Windows 上若不显式带齐标题/系统菜单/
+        # 关闭/最小最大化 hint，关闭按钮会被禁用变灰。这里显式重建整个 flag 集合，
+        # 不依赖 self.windowFlags() 的 OR/AND 操作。
+        base = (
+            Qt.Window
+            | Qt.WindowTitleHint
+            | Qt.WindowSystemMenuHint
+            | Qt.WindowMinMaxButtonsHint
+            | Qt.WindowCloseButtonHint
+        )
         if checked:
-            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(base | Qt.WindowStaysOnTopHint)
             self.btn_pin.setText("📌 已置顶")
         else:
-            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(base)
             self.btn_pin.setText("📌 置顶")
         self.show()
 
