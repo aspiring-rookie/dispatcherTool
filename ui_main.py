@@ -466,7 +466,9 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self) -> None:
         dlg = SettingsDialog(self.db, self)
-        if dlg.exec() == dlg.Accepted:
-            self._current_view = self.resolver.resolve()
-            self._refresh_status()
-            self._refresh_active_tab()
+        dlg.exec()
+        # 设置对话框只有「关闭」按钮（走 rejected），不区分 Accepted；
+        # 只要关闭就刷新，确保模板/班次变更立即反映到任务列表
+        self._current_view = self.resolver.resolve()
+        self._refresh_status()
+        self._refresh_active_tab()

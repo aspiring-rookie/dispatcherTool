@@ -178,10 +178,25 @@ class DatabaseManager:
                 """,
                 (name, shift_type, 1 if is_active else 0, due_time, template_id),
             )
+            # 把新的 name / due_time 同步到所有未完成的 DailyRecords；
+            # 已完成的不动（保留历史交接班记录的原始信息）
+            self._conn.execute(
+                """
+                UPDATE DailyRecords
+                SET name = ?, due_time = ?
+                WHERE task_id = ? AND is_completed = 0
+                """,
+                (name, due_time, template_id),
+            )
             self._conn.commit()
 
     def delete_template(self, template_id: int) -> None:
         with self._lock:
+            # 删除未完成的 DailyRecords（已完成的留作历史）
+            self._conn.execute(
+                "DELETE FROM DailyRecords WHERE task_id = ? AND is_completed = 0",
+                (template_id,),
+            )
             self._conn.execute("DELETE FROM TaskTemplates WHERE id = ?", (template_id,))
             self._conn.commit()
 
