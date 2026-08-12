@@ -152,11 +152,12 @@ def main() -> int:
 
     try:
         db.close()
-    finally:
-        try:
-            backup_db(db_path())
-        except Exception as e:  # noqa: BLE001
-            print(f"[WARN] backup failed: {e}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001
+        print(f"[WARN] db.close failed: {e}", file=sys.stderr)
+    try:
+        backup_db(db_path())
+    except Exception as e:  # noqa: BLE001
+        print(f"[WARN] backup failed: {e}", file=sys.stderr)
     return exit_code
 
 

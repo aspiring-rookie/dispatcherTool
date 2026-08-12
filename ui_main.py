@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -286,21 +287,31 @@ class MainWindow(QMainWindow):
     # ---------- 业务逻辑 ----------
 
     def _tick(self) -> None:
-        new_view = self.resolver.resolve()
-        if (
-            new_view["shift_id"] != self._current_view["shift_id"]
-            or new_view["date"] != self._current_view["date"]
-        ):
-            self._current_view = new_view
-            self._ensure_today_generated()
-        self._refresh_status()
-        self._refresh_active_tab()
+        # 有模态对话框打开时跳过刷新，避免嵌套模态卡死
+        if QApplication.activeModalWidget() is not None:
+            return
+        try:
+            new_view = self.resolver.resolve()
+            if (
+                new_view["shift_id"] != self._current_view["shift_id"]
+                or new_view["date"] != self._current_view["date"]
+            ):
+                self._current_view = new_view
+                self._ensure_today_generated()
+            self._refresh_status()
+            self._refresh_active_tab()
+        except Exception as e:  # noqa: BLE001
+            # 定时器异常只显示状态栏，不弹窗、不闪退
+            self.statusBar().showMessage(f"刷新失败：{e}", 5000)
 
     def _manual_refresh(self) -> None:
-        self._current_view = self.resolver.resolve()
-        self._ensure_today_generated()
-        self._refresh_status()
-        self._refresh_active_tab()
+        try:
+            self._current_view = self.resolver.resolve()
+            self._ensure_today_generated()
+            self._refresh_status()
+            self._refresh_active_tab()
+        except Exception as e:  # noqa: BLE001
+            self.statusBar().showMessage(f"刷新失败：{e}", 5000)
 
     def _refresh_status(self) -> None:
         view = self._current_view
@@ -419,8 +430,13 @@ class MainWindow(QMainWindow):
         if rid is None:
             return
         completed = item.checkState(0) == Qt.Checked
-        self.db.set_record_completed(int(rid), completed)
-        self._refresh_active_tab()
+        try:
+            self.db.set_record_completed(int(rid), completed)
+        except Exception as e:  # noqa: BLE001
+            self.statusBar().showMessage(f"保存失败：{e}", 5000)
+            return
+        # 推迟到下一轮事件循环刷新，避免连续勾选时叠加多次 rebuild
+        QTimer.singleShot(0, self._refresh_active_tab)
 
     def _on_add_temp(self) -> None:
         text = self.input_temp.text().strip()
